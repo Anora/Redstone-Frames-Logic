@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "side": "rfl:block/logic_side",
+    "top": "rfl:block/logic_top"
+  }
+}

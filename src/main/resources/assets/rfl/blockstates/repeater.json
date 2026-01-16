@@ -1,0 +1,14 @@
+{
+  "variants": {
+    "facing=north,powered=false": { "model": "rfl:block/repeater", "y": 0 },
+    "facing=east,powered=false":  { "model": "rfl:block/repeater", "y": 90 },
+    "facing=south,powered=false": { "model": "rfl:block/repeater", "y": 180 },
+    "facing=west,powered=false":  { "model": "rfl:block/repeater", "y": 270 },
+
+    "facing=north,powered=true": { "model": "rfl:block/repeater_on", "y": 0 },
+    "facing=east,powered=true":  { "model": "rfl:block/repeater_on", "y": 90 },
+    "facing=south,powered=true": { "model": "rfl:block/repeater_on", "y": 180 },
+    "facing=west,powered=true":  { "model": "rfl:block/repeater_on", "y": 270 }
+  }
+}
+

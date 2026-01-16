@@ -1,0 +1,13 @@
+{
+  "itemGroup.redstoneframeslogic": "Example Mod Tab",
+  "block.redstoneframeslogic.example_block": "Example Block",
+  "item.redstoneframeslogic.example_item": "Example Item",
+
+  "redstoneframeslogic.configuration.title": "Redstone: Frames & Logic Configs",
+  "redstoneframeslogic.configuration.section.redstoneframeslogic.common.toml": "Redstone: Frames & Logic Configs",
+  "redstoneframeslogic.configuration.section.redstoneframeslogic.common.toml.title": "Redstone: Frames & Logic Configs",
+  "redstoneframeslogic.configuration.items": "Item List",
+  "redstoneframeslogic.configuration.logDirtBlock": "Log Dirt Block",
+  "redstoneframeslogic.configuration.magicNumberIntroduction": "Magic Number Text",
+  "redstoneframeslogic.configuration.magicNumber": "Magic Number"
+}

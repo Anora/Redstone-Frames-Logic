@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "front": "rfl:block/repeater_front_on",
+    "side": "rfl:block/repeater_side",
+    "top": "rfl:block/repeater_top"
+  }
+}
