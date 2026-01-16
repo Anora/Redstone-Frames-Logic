@@ -1,6 +1,7 @@
 package com.anora.rfl.core.init;
 
 import com.anora.rfl.RFL;
+import com.anora.rfl.core.block.NotGateBlock;
 import com.anora.rfl.core.block.RepeaterBlock;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -26,6 +27,17 @@ public final class RFLBlocks {
                     .noOcclusion() // ✅ important: not treated like a full cube
                     .isRedstoneConductor((state, level, pos) -> false) // ✅ no through-block conduction
                     .lightLevel(state -> state.getValue(RepeaterBlock.POWERED) ? 12 : 0)
+    );
+
+    public static final DeferredBlock<NotGateBlock> NOT_GATE = BLOCKS.registerBlock(
+            "not_gate",
+            NotGateBlock::new,
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_RED)
+                    .sound(SoundType.STONE)
+                    .strength(1.5f)
+                    .noOcclusion()
+                    .isRedstoneConductor((state, level, pos) -> false)
     );
 
 }

@@ -12,5 +12,7 @@ public final class RFLItems {
     static {
         // NeoForge 21.x safe helper: does NOT call .value() early
         ITEMS.registerSimpleBlockItem("repeater", RFLBlocks.REPEATER);
+        ITEMS.registerSimpleBlockItem("not_gate", RFLBlocks.NOT_GATE);
+
     }
 }
