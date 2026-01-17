@@ -14,6 +14,7 @@ public final class RFLItems {
         ITEMS.registerSimpleBlockItem("repeater", RFLBlocks.REPEATER);
         ITEMS.registerSimpleBlockItem("not_gate", RFLBlocks.NOT_GATE);
         ITEMS.registerSimpleBlockItem("and_gate", RFLBlocks.AND_GATE);
-
+        ITEMS.registerSimpleBlockItem("or_gate", RFLBlocks.OR_GATE);
+        ITEMS.registerSimpleBlockItem("nand_gate", RFLBlocks.NAND_GATE);
     }
 }

@@ -1,14 +1,12 @@
 package com.anora.rfl.core.init;
 
 import com.anora.rfl.RFL;
-import com.anora.rfl.core.block.NotGateBlock;
-import com.anora.rfl.core.block.RepeaterBlock;
+import com.anora.rfl.core.block.*;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredRegister;
-import com.anora.rfl.core.block.AndGateBlock;
 
 public final class RFLBlocks {
 
@@ -17,7 +15,6 @@ public final class RFLBlocks {
     // IMPORTANT: use DeferredRegister.Blocks (not DeferredRegister.create(Registries.BLOCK,...))
     public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(RFL.MODID);
 
-    // registerBlock sets the ID internally (avoids “Block id not set”)
     public static final DeferredBlock<RepeaterBlock> REPEATER = BLOCKS.registerBlock(
             "repeater",
             RepeaterBlock::new,
@@ -25,8 +22,8 @@ public final class RFLBlocks {
                     .mapColor(MapColor.COLOR_RED)
                     .sound(SoundType.STONE)
                     .strength(2.0f)
-                    .noOcclusion() // ✅ important: not treated like a full cube
-                    .isRedstoneConductor((state, level, pos) -> false) // ✅ no through-block conduction
+                    .noOcclusion()
+                    .isRedstoneConductor((state, level, pos) -> false)
                     .lightLevel(state -> state.getValue(RepeaterBlock.POWERED) ? 12 : 0)
     );
 
@@ -52,4 +49,25 @@ public final class RFLBlocks {
                     .isRedstoneConductor((state, level, pos) -> false)
     );
 
+    public static final DeferredBlock<OrGateBlock> OR_GATE = BLOCKS.registerBlock(
+            "or_gate",
+            OrGateBlock::new,
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_RED)
+                    .sound(SoundType.STONE)
+                    .strength(1.5f)
+                    .noOcclusion()
+                    .isRedstoneConductor((state, level, pos) -> false)
+    );
+
+    public static final DeferredBlock<NandGateBlock> NAND_GATE = BLOCKS.registerBlock(
+            "nand_gate",
+            NandGateBlock::new,
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_RED)
+                    .sound(SoundType.STONE)
+                    .strength(1.5f)
+                    .noOcclusion()
+                    .isRedstoneConductor((state, level, pos) -> false)
+    );
 }

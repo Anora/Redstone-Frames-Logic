@@ -15,7 +15,7 @@ import javax.annotation.Nullable;
 /**
  * Shared base for low-profile "logic" blocks.
  *
- * Convention (same as your repeater):
+ * Convention:
  *  - FACING points toward the FRONT (output side)
  *  - BACK is input side (front.getOpposite())
  *
@@ -30,7 +30,7 @@ public abstract class LogicGateBlock extends GroundRotatableBlock {
     /** Must match manager convention. */
     protected static final boolean FRONT_IS_FACING = true;
 
-    /** Low-profile: 2/16 tall (fixes dust connectivity). */
+    /** Low-profile: 2/16 tall. */
     protected static final VoxelShape SHAPE = Block.box(0, 0, 0, 16, 2, 16);
 
     protected LogicGateBlock(Properties properties) {
@@ -94,4 +94,3 @@ public abstract class LogicGateBlock extends GroundRotatableBlock {
         return getSignal(state, level, pos, dir);
     }
 }
-

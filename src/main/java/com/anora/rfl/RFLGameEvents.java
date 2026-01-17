@@ -1,7 +1,9 @@
 package com.anora.rfl;
 
 import com.anora.rfl.core.block.AndGateBlock;
+import com.anora.rfl.core.block.NandGateBlock;
 import com.anora.rfl.core.block.NotGateBlock;
+import com.anora.rfl.core.block.OrGateBlock;
 import com.anora.rfl.core.block.RepeaterBlock;
 import com.anora.rfl.network.runtime.RFLNetworkManager;
 import net.minecraft.core.BlockPos;
@@ -38,6 +40,10 @@ public final class RFLGameEvents {
             RFLNetworkManager.get(level).onNotGatePlaced(event.getPos());
         } else if (event.getPlacedBlock().getBlock() instanceof AndGateBlock) {
             RFLNetworkManager.get(level).onAndGatePlaced(event.getPos());
+        } else if (event.getPlacedBlock().getBlock() instanceof OrGateBlock) {
+            RFLNetworkManager.get(level).onOrGatePlaced(event.getPos());
+        } else if (event.getPlacedBlock().getBlock() instanceof NandGateBlock) {
+            RFLNetworkManager.get(level).onNandGatePlaced(event.getPos());
         }
     }
 
@@ -51,12 +57,13 @@ public final class RFLGameEvents {
             RFLNetworkManager.get(level).onNotGateBroken(event.getPos());
         } else if (event.getState().getBlock() instanceof AndGateBlock) {
             RFLNetworkManager.get(level).onAndGateBroken(event.getPos());
+        } else if (event.getState().getBlock() instanceof OrGateBlock) {
+            RFLNetworkManager.get(level).onOrGateBroken(event.getPos());
+        } else if (event.getState().getBlock() instanceof NandGateBlock) {
+            RFLNetworkManager.get(level).onNandGateBroken(event.getPos());
         }
     }
 
-    /**
-     * When a chunk loads, scan it for RFL blocks and register them.
-     */
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
         if (!(event.getLevel() instanceof ServerLevel level)) return;
@@ -83,6 +90,10 @@ public final class RFLGameEvents {
                         mgr.onNotGatePlaced(mp.immutable());
                     } else if (state.getBlock() instanceof AndGateBlock) {
                         mgr.onAndGatePlaced(mp.immutable());
+                    } else if (state.getBlock() instanceof OrGateBlock) {
+                        mgr.onOrGatePlaced(mp.immutable());
+                    } else if (state.getBlock() instanceof NandGateBlock) {
+                        mgr.onNandGatePlaced(mp.immutable());
                     }
                 }
             }
