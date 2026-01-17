@@ -2,6 +2,7 @@ package com.anora.rfl;
 
 import com.anora.rfl.core.block.AndGateBlock;
 import com.anora.rfl.core.block.NandGateBlock;
+import com.anora.rfl.core.block.NorGateBlock;
 import com.anora.rfl.core.block.NotGateBlock;
 import com.anora.rfl.core.block.OrGateBlock;
 import com.anora.rfl.core.block.RepeaterBlock;
@@ -44,6 +45,8 @@ public final class RFLGameEvents {
             RFLNetworkManager.get(level).onOrGatePlaced(event.getPos());
         } else if (event.getPlacedBlock().getBlock() instanceof NandGateBlock) {
             RFLNetworkManager.get(level).onNandGatePlaced(event.getPos());
+        } else if (event.getPlacedBlock().getBlock() instanceof NorGateBlock) {
+            RFLNetworkManager.get(level).onNorGatePlaced(event.getPos());
         }
     }
 
@@ -61,6 +64,8 @@ public final class RFLGameEvents {
             RFLNetworkManager.get(level).onOrGateBroken(event.getPos());
         } else if (event.getState().getBlock() instanceof NandGateBlock) {
             RFLNetworkManager.get(level).onNandGateBroken(event.getPos());
+        } else if (event.getState().getBlock() instanceof NorGateBlock) {
+            RFLNetworkManager.get(level).onNorGateBroken(event.getPos());
         }
     }
 
@@ -94,6 +99,8 @@ public final class RFLGameEvents {
                         mgr.onOrGatePlaced(mp.immutable());
                     } else if (state.getBlock() instanceof NandGateBlock) {
                         mgr.onNandGatePlaced(mp.immutable());
+                    } else if (state.getBlock() instanceof NorGateBlock) {
+                        mgr.onNorGatePlaced(mp.immutable());
                     }
                 }
             }
@@ -107,3 +114,4 @@ public final class RFLGameEvents {
         }
     }
 }
+

@@ -70,4 +70,15 @@ public final class RFLBlocks {
                     .noOcclusion()
                     .isRedstoneConductor((state, level, pos) -> false)
     );
+
+    public static final DeferredBlock<NorGateBlock> NOR_GATE = BLOCKS.registerBlock(
+            "nor_gate",
+            NorGateBlock::new,
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_RED)
+                    .sound(SoundType.STONE)
+                    .strength(1.5f)
+                    .noOcclusion()
+                    .isRedstoneConductor((state, level, pos) -> false)
+    );
 }

@@ -16,5 +16,6 @@ public final class RFLItems {
         ITEMS.registerSimpleBlockItem("and_gate", RFLBlocks.AND_GATE);
         ITEMS.registerSimpleBlockItem("or_gate", RFLBlocks.OR_GATE);
         ITEMS.registerSimpleBlockItem("nand_gate", RFLBlocks.NAND_GATE);
+        ITEMS.registerSimpleBlockItem("nor_gate", RFLBlocks.NOR_GATE);
     }
 }
