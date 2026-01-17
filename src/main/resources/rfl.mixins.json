@@ -2,7 +2,9 @@
   "required": true,
   "package": "com.anora.rfl.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [],
+  "mixins": [
+    "RedStoneWireBlockMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   },

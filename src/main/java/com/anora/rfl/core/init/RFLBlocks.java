@@ -8,6 +8,7 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import com.anora.rfl.core.block.AndGateBlock;
 
 public final class RFLBlocks {
 
@@ -32,6 +33,17 @@ public final class RFLBlocks {
     public static final DeferredBlock<NotGateBlock> NOT_GATE = BLOCKS.registerBlock(
             "not_gate",
             NotGateBlock::new,
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_RED)
+                    .sound(SoundType.STONE)
+                    .strength(1.5f)
+                    .noOcclusion()
+                    .isRedstoneConductor((state, level, pos) -> false)
+    );
+
+    public static final DeferredBlock<AndGateBlock> AND_GATE = BLOCKS.registerBlock(
+            "and_gate",
+            AndGateBlock::new,
             BlockBehaviour.Properties.of()
                     .mapColor(MapColor.COLOR_RED)
                     .sound(SoundType.STONE)

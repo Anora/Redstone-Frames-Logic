@@ -1,12 +1,12 @@
 package com.anora.rfl;
 
+import com.anora.rfl.core.block.AndGateBlock;
 import com.anora.rfl.core.block.NotGateBlock;
 import com.anora.rfl.core.block.RepeaterBlock;
 import com.anora.rfl.network.runtime.RFLNetworkManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -36,6 +36,8 @@ public final class RFLGameEvents {
             RFLNetworkManager.get(level).onRepeaterPlaced(event.getPos());
         } else if (event.getPlacedBlock().getBlock() instanceof NotGateBlock) {
             RFLNetworkManager.get(level).onNotGatePlaced(event.getPos());
+        } else if (event.getPlacedBlock().getBlock() instanceof AndGateBlock) {
+            RFLNetworkManager.get(level).onAndGatePlaced(event.getPos());
         }
     }
 
@@ -47,12 +49,13 @@ public final class RFLGameEvents {
             RFLNetworkManager.get(level).onRepeaterBroken(event.getPos());
         } else if (event.getState().getBlock() instanceof NotGateBlock) {
             RFLNetworkManager.get(level).onNotGateBroken(event.getPos());
+        } else if (event.getState().getBlock() instanceof AndGateBlock) {
+            RFLNetworkManager.get(level).onAndGateBroken(event.getPos());
         }
     }
 
     /**
-     * Key fix: when a chunk loads, scan it for RFL blocks and register them.
-     * This makes repeaters/gates work after you reload a world.
+     * When a chunk loads, scan it for RFL blocks and register them.
      */
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
@@ -68,8 +71,6 @@ public final class RFLGameEvents {
         int baseX = chunk.getPos().getMinBlockX();
         int baseZ = chunk.getPos().getMinBlockZ();
 
-        // Scan all blocks in the chunk.
-        // (We can optimize later using section palettes; this is the simplest correct version.)
         for (int y = minY; y < maxY; y++) {
             for (int dx = 0; dx < 16; dx++) {
                 for (int dz = 0; dz < 16; dz++) {
@@ -80,6 +81,8 @@ public final class RFLGameEvents {
                         mgr.onRepeaterPlaced(mp.immutable());
                     } else if (state.getBlock() instanceof NotGateBlock) {
                         mgr.onNotGatePlaced(mp.immutable());
+                    } else if (state.getBlock() instanceof AndGateBlock) {
+                        mgr.onAndGatePlaced(mp.immutable());
                     }
                 }
             }

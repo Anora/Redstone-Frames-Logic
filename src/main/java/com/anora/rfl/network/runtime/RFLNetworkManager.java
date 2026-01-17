@@ -1,6 +1,7 @@
 package com.anora.rfl.network.runtime;
 
 import com.anora.rfl.core.SignalValue;
+import com.anora.rfl.core.block.AndGateBlock;
 import com.anora.rfl.core.block.NotGateBlock;
 import com.anora.rfl.core.block.RepeaterBlock;
 import com.anora.rfl.core.block.common.GroundRotatableBlock;
@@ -8,6 +9,8 @@ import com.anora.rfl.network.FileDelayStore;
 import com.anora.rfl.network.NetPos;
 import com.anora.rfl.network.NetworkGraph;
 import com.anora.rfl.network.NetworkNode;
+import com.anora.rfl.network.TwoInputNode;
+import com.anora.rfl.network.node.AndGateNode;
 import com.anora.rfl.network.node.InverterNode;
 import com.anora.rfl.network.node.RepeaterNode;
 import com.anora.rfl.network.util.DelayStore;
@@ -43,17 +46,21 @@ public final class RFLNetworkManager {
     /** Must match block code. */
     private static final boolean FRONT_IS_FACING = true;
 
-    /** Flip off later. */
-    private static final boolean DEBUG_CHAT = true;
+    /** Debug spam toggle. */
+    private static final boolean DEBUG_CHAT = false;
 
     private final ServerLevel level;
     private final NetworkGraph graph = new NetworkGraph();
 
     private final Set<Long> repeaterPositions = new HashSet<>();
     private final Set<Long> notGatePositions = new HashSet<>();
+    private final Set<Long> andGatePositions = new HashSet<>();
 
     private final Map<Long, Boolean> lastInput = new HashMap<>();
     private final Map<Long, Boolean> lastOut = new HashMap<>();
+
+    // AND: track A/B so we can dirty the graph when either changes
+    private final Map<Long, Integer> lastAndKey = new HashMap<>();
 
     private final Set<Long> dirty = new HashSet<>();
 
@@ -106,6 +113,7 @@ public final class RFLNetworkManager {
         long p = pos.asLong();
         notGatePositions.add(p);
 
+        ensureDelayStore();
         ensureInverterNode(pos);
 
         lastInput.remove(p);
@@ -123,8 +131,31 @@ public final class RFLNetworkManager {
         graph.removeNode(netPos(pos));
     }
 
+    public void onAndGatePlaced(BlockPos pos) {
+        long p = pos.asLong();
+        andGatePositions.add(p);
+
+        ensureDelayStore();
+        ensureAndGateNode(pos);
+
+        lastAndKey.remove(p);
+        lastOut.remove(p);
+        dirty.add(p);
+    }
+
+    public void onAndGateBroken(BlockPos pos) {
+        long p = pos.asLong();
+        andGatePositions.remove(p);
+        dirty.remove(p);
+
+        lastAndKey.remove(p);
+        lastOut.remove(p);
+
+        graph.removeNode(netPos(pos));
+    }
+
     // ---------------------------------------------------------------------
-    // Delay config API (used by repeater right-click)
+    // Delay config API (repeater right-click)
     // ---------------------------------------------------------------------
 
     public int getRepeaterDelayTicks(BlockPos pos) {
@@ -158,23 +189,25 @@ public final class RFLNetworkManager {
     public void tick() {
         ensureDelayStoreIfNeededForRepeaters();
 
-        // Process inputs (edges) for both block types
         processInputsForRepeaters();
         processInputsForNotGates();
+        processInputsForAndGates();
 
         if (dirty.isEmpty()) return;
 
-        // Run logic
         graph.tick();
         graph.settleUntilStable(64);
 
-        // Apply outputs
         applyOutputsForRepeaters();
         applyOutputsForNotGates();
+        applyOutputsForAndGates();
 
-        // Keep dirty only for repeaters that are mid-transition
         shrinkDirty();
     }
+
+    // ---------------------------------------------------------------------
+    // Input processing
+    // ---------------------------------------------------------------------
 
     private void processInputsForRepeaters() {
         if (repeaterPositions.isEmpty()) return;
@@ -186,33 +219,22 @@ public final class RFLNetworkManager {
 
             if (!(state.getBlock() instanceof RepeaterBlock)) {
                 repeaterPositions.remove(packed);
-                dirty.remove(packed);
-                lastInput.remove(packed);
-                lastOut.remove(packed);
-                graph.removeNode(netPos(pos));
+                cleanupPos(pos);
                 continue;
             }
 
             ensureRepeaterNode(pos);
 
-            int backPower = readBackInputPower(state, pos);
+            int backPower = readInputPowerFromSide(pos, backDir(state));
             boolean hasInput = backPower > 0;
 
-            Boolean prev = lastInput.get(packed);
-            if (prev == null || prev != hasInput) {
-                lastInput.put(packed, hasInput);
-                dirty.add(packed);
-
+            if (edgeChanged(packed, hasInput)) {
                 if (DEBUG_CHAT) {
                     int delayTicks = delayStore.getDelayTicks(netPos(pos), REDPOWER_DELAYS[0]);
                     int step = delayTicksToIndex(delayTicks);
                     broadcastNearby(pos, Component.literal(
-                            "[RFL] Repeater @" + pos.getX() + "," + pos.getY() + "," + pos.getZ()
-                                    + " input=" + (hasInput ? "ON" : "OFF")
-                                    + " backPower=" + backPower
-                                    + " BACK=" + backDir(state)
-                                    + " FRONT=" + frontDir(state)
-                                    + " delay=" + delayTicks + "t step " + step + "/9"
+                            "[RFL] Repeater @" + pos + " input=" + (hasInput ? "ON" : "OFF")
+                                    + " backPower=" + backPower + " delay=" + delayTicks + " step " + step + "/9"
                     ));
                 }
             }
@@ -231,37 +253,87 @@ public final class RFLNetworkManager {
 
             if (!(state.getBlock() instanceof NotGateBlock)) {
                 notGatePositions.remove(packed);
-                dirty.remove(packed);
-                lastInput.remove(packed);
-                lastOut.remove(packed);
-                graph.removeNode(netPos(pos));
+                cleanupPos(pos);
                 continue;
             }
 
             ensureInverterNode(pos);
 
-            int backPower = readBackInputPower(state, pos);
+            int backPower = readInputPowerFromSide(pos, backDir(state));
             boolean hasInput = backPower > 0;
 
-            Boolean prev = lastInput.get(packed);
-            if (prev == null || prev != hasInput) {
-                lastInput.put(packed, hasInput);
-                dirty.add(packed);
-
-                if (DEBUG_CHAT) {
-                    broadcastNearby(pos, Component.literal(
-                            "[RFL] NOT @" + pos.getX() + "," + pos.getY() + "," + pos.getZ()
-                                    + " input=" + (hasInput ? "ON" : "OFF")
-                                    + " backPower=" + backPower
-                                    + " BACK=" + backDir(state)
-                                    + " FRONT=" + frontDir(state)
-                    ));
-                }
-            }
-
+            edgeChanged(packed, hasInput);
             graph.setExternalSingleIn(netPos(pos), hasInput ? SignalValue.ON : SignalValue.OFF);
         }
     }
+
+    /**
+     * AND gate: manager reads left/right and feeds TwoInputNode inputs.
+     * Node computes output.
+     */
+    private void processInputsForAndGates() {
+        if (andGatePositions.isEmpty()) return;
+
+        long[] positions = andGatePositions.stream().mapToLong(Long::longValue).toArray();
+        for (long packed : positions) {
+            BlockPos pos = BlockPos.of(packed);
+            BlockState state = level.getBlockState(pos);
+
+            if (!(state.getBlock() instanceof AndGateBlock)) {
+                andGatePositions.remove(packed);
+                cleanupPos(pos);
+                continue;
+            }
+
+            ensureAndGateNode(pos);
+
+            NetPos np = netPos(pos);
+            NetworkNode base = graph.getNode(np);
+            if (!(base instanceof TwoInputNode two)) {
+                continue;
+            }
+
+            Direction front = frontDir(state);
+            Direction left = front.getCounterClockWise();
+            Direction right = front.getClockWise();
+
+            int leftPower = readInputPowerFromSide(pos, left);
+            int rightPower = readInputPowerFromSide(pos, right);
+
+            SignalValue a = (leftPower > 0) ? SignalValue.ON : SignalValue.OFF;
+            SignalValue b = (rightPower > 0) ? SignalValue.ON : SignalValue.OFF;
+
+            two.setInputs(a, b);
+
+            int key = (a == SignalValue.ON ? 1 : 0) | (b == SignalValue.ON ? 2 : 0);
+            Integer prev = lastAndKey.get(packed);
+            if (prev == null || prev != key) {
+                lastAndKey.put(packed, key);
+                dirty.add(packed);
+
+                if (DEBUG_CHAT) {
+                    broadcastNearby(pos, Component.literal("[RFL] AND @" + pos + " L=" + leftPower + " R=" + rightPower));
+                }
+            }
+
+            // IMPORTANT: AND is not driven by external single input.
+            graph.setExternalSingleIn(np, SignalValue.OFF);
+        }
+    }
+
+    private boolean edgeChanged(long packed, boolean newVal) {
+        Boolean prev = lastInput.get(packed);
+        if (prev == null || prev != newVal) {
+            lastInput.put(packed, newVal);
+            dirty.add(packed);
+            return true;
+        }
+        return false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Output apply
+    // ---------------------------------------------------------------------
 
     private void applyOutputsForRepeaters() {
         for (long packed : new HashSet<>(dirty)) {
@@ -279,10 +351,6 @@ public final class RFLNetworkManager {
                 BlockState newState = state.setValue(RepeaterBlock.POWERED, desiredOut);
                 level.setBlock(pos, newState, 3);
                 notifyRedstoneBothSides(pos, newState);
-
-                if (DEBUG_CHAT) {
-                    broadcastNearby(pos, Component.literal("[RFL] Repeater @" + pos + " applied " + (desiredOut ? "ON" : "OFF")));
-                }
             }
 
             lastOut.put(packed, desiredOut);
@@ -305,10 +373,28 @@ public final class RFLNetworkManager {
                 BlockState newState = state.setValue(NotGateBlock.POWERED, desiredOut);
                 level.setBlock(pos, newState, 3);
                 notifyRedstoneBothSides(pos, newState);
+            }
 
-                if (DEBUG_CHAT) {
-                    broadcastNearby(pos, Component.literal("[RFL] NOT @" + pos + " applied " + (desiredOut ? "ON" : "OFF")));
-                }
+            lastOut.put(packed, desiredOut);
+        }
+    }
+
+    private void applyOutputsForAndGates() {
+        for (long packed : new HashSet<>(dirty)) {
+            BlockPos pos = BlockPos.of(packed);
+            BlockState state = level.getBlockState(pos);
+            if (!(state.getBlock() instanceof AndGateBlock)) continue;
+
+            NetworkNode node = graph.getNode(netPos(pos));
+            if (!(node instanceof AndGateNode)) continue;
+
+            boolean desiredOut = node.singleOut() == SignalValue.ON;
+            boolean currentOut = state.getValue(AndGateBlock.POWERED);
+
+            if (desiredOut != currentOut) {
+                BlockState newState = state.setValue(AndGateBlock.POWERED, desiredOut);
+                level.setBlock(pos, newState, 3);
+                notifyRedstoneBothSides(pos, newState);
             }
 
             lastOut.put(packed, desiredOut);
@@ -318,14 +404,12 @@ public final class RFLNetworkManager {
     private void shrinkDirty() {
         Set<Long> stillDirty = new HashSet<>();
 
-        // Repeaters can be mid-transition (delay), keep them dirty if input != output
         for (long packed : repeaterPositions) {
             boolean in = lastInput.getOrDefault(packed, false);
             boolean out = lastOut.getOrDefault(packed, false);
             if (in != out) stillDirty.add(packed);
         }
 
-        // NOT gates are combinational; no need to keep dirty once applied
         dirty.clear();
         dirty.addAll(stillDirty);
     }
@@ -333,6 +417,15 @@ public final class RFLNetworkManager {
     // ---------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------
+
+    private void cleanupPos(BlockPos pos) {
+        long packed = pos.asLong();
+        dirty.remove(packed);
+        lastInput.remove(packed);
+        lastOut.remove(packed);
+        lastAndKey.remove(packed);
+        graph.removeNode(netPos(pos));
+    }
 
     private void ensureRepeaterNode(BlockPos pos) {
         NetPos np = netPos(pos);
@@ -352,10 +445,18 @@ public final class RFLNetworkManager {
         graph.putNode(np, new InverterNode(np, delayStore));
     }
 
-    private int readBackInputPower(BlockState logicState, BlockPos logicPos) {
-        Direction back = backDir(logicState);
-        BlockPos neighbor = logicPos.relative(back);
-        Direction towardThis = back.getOpposite();
+    private void ensureAndGateNode(BlockPos pos) {
+        NetPos np = netPos(pos);
+        NetworkNode existing = graph.getNode(np);
+        if (existing instanceof AndGateNode) return;
+
+        ensureDelayStore();
+        graph.putNode(np, new AndGateNode(np, delayStore));
+    }
+
+    private int readInputPowerFromSide(BlockPos logicPos, Direction side) {
+        BlockPos neighbor = logicPos.relative(side);
+        Direction towardThis = side.getOpposite();
 
         int weak = level.getSignal(neighbor, towardThis);
         int direct = level.getDirectSignal(neighbor, towardThis);

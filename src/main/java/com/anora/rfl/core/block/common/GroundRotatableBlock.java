@@ -19,13 +19,22 @@ import javax.annotation.Nullable;
  * Base block:
  * - Ground-only placement
  * - Horizontal rotation
- * - Redstone dust visually connects on horizontal sides
+ *
+ * IMPORTANT:
+ * Do NOT default to "connect to redstone on all horizontal sides" here.
+ * That causes dust to visually connect to sides that are not real ports
+ * for logic gates like AND/OR/etc.
+ *
+ * Each logic block should explicitly decide its redstone ports by overriding
+ * canConnectRedstone in LogicGateBlock or the specific gate block.
  *
  * NOTE: DirectionProperty does not exist in 1.21.2, so we use EnumProperty<Direction>.
  */
 public class GroundRotatableBlock extends Block {
 
-    public static final EnumProperty<Direction> FACING = EnumProperty.create("facing", Direction.class, Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST);
+    public static final EnumProperty<Direction> FACING =
+            EnumProperty.create("facing", Direction.class,
+                    Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST);
 
     public GroundRotatableBlock(Properties properties) {
         super(properties);
@@ -62,15 +71,16 @@ public class GroundRotatableBlock extends Block {
     }
 
     /**
-     * Makes redstone dust visually connect instead of going into the dot/star shape.
+     * Default: do NOT allow dust connections.
+     * Subclasses (LogicGateBlock / wires) should explicitly opt-in.
      */
     @Override
     @SuppressWarnings("deprecation")
     public boolean canConnectRedstone(BlockState state, BlockGetter level, BlockPos pos, @Nullable Direction direction) {
-        if (direction == null) return true;
-        return direction.getAxis().isHorizontal();
+        return false;
     }
 }
+
 
 
 
