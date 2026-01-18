@@ -1,6 +1,7 @@
 package com.anora.rfl.network.runtime;
 
 import com.anora.rfl.core.SignalValue;
+import com.anora.rfl.core.block.BufferGateBlock;
 import com.anora.rfl.core.block.NotGateBlock;
 import com.anora.rfl.core.block.RepeaterBlock;
 import com.anora.rfl.core.block.common.GroundRotatableBlock;
@@ -8,6 +9,7 @@ import com.anora.rfl.network.FileDelayStore;
 import com.anora.rfl.network.NetPos;
 import com.anora.rfl.network.NetworkGraph;
 import com.anora.rfl.network.NetworkNode;
+import com.anora.rfl.network.node.BufferGateNode;
 import com.anora.rfl.network.node.InverterNode;
 import com.anora.rfl.network.node.RepeaterNode;
 import com.anora.rfl.network.util.DelayStore;
@@ -47,6 +49,7 @@ public final class RFLNetworkManager {
 
     private final Set<Long> repeaterPositions = new HashSet<>();
     private final Set<Long> notGatePositions = new HashSet<>();
+    private final Set<Long> bufferGatePositions = new HashSet<>();
 
     private final Map<Long, Boolean> lastInput = new HashMap<>();
     private final Map<Long, Boolean> lastOut = new HashMap<>();
@@ -128,6 +131,27 @@ public final class RFLNetworkManager {
         graph.removeNode(netPos(pos));
     }
 
+    public void onBufferGatePlaced(BlockPos pos) {
+        long p = pos.asLong();
+        bufferGatePositions.add(p);
+
+        ensureDelayStore();
+        ensureBufferNode(pos);
+
+        lastInput.remove(p);
+        lastOut.remove(p);
+        dirty.add(p);
+    }
+
+    public void onBufferGateBroken(BlockPos pos) {
+        long p = pos.asLong();
+        bufferGatePositions.remove(p);
+        dirty.remove(p);
+        lastInput.remove(p);
+        lastOut.remove(p);
+        graph.removeNode(netPos(pos));
+    }
+
     // ---- 2-input gate hooks (delegated) ----
 
     public void onAndGatePlaced(BlockPos pos) { twoInputRuntime.onPlaced(TwoInputGatesRuntime.GateType.AND, pos); }
@@ -185,6 +209,7 @@ public final class RFLNetworkManager {
 
         processInputsForRepeaters();
         processInputsForNotGates();
+        processInputsForBufferGates();
         twoInputRuntime.processInputs();
 
         if (dirty.isEmpty()) return;
@@ -194,6 +219,7 @@ public final class RFLNetworkManager {
 
         applyOutputsForRepeaters();
         applyOutputsForNotGates();
+        applyOutputsForBufferGates();
         twoInputRuntime.applyOutputs();
 
         shrinkDirty();
@@ -257,6 +283,30 @@ public final class RFLNetworkManager {
         }
     }
 
+    private void processInputsForBufferGates() {
+        if (bufferGatePositions.isEmpty()) return;
+
+        long[] positions = bufferGatePositions.stream().mapToLong(Long::longValue).toArray();
+        for (long packed : positions) {
+            BlockPos pos = BlockPos.of(packed);
+            BlockState state = level.getBlockState(pos);
+
+            if (!(state.getBlock() instanceof BufferGateBlock)) {
+                bufferGatePositions.remove(packed);
+                cleanupPos(pos);
+                continue;
+            }
+
+            ensureBufferNode(pos);
+
+            int backPower = readInputPowerFromSide(pos, backDir(state));
+            boolean hasInput = backPower > 0;
+
+            edgeChanged(packed, hasInput);
+            graph.setExternalSingleIn(netPos(pos), hasInput ? SignalValue.ON : SignalValue.OFF);
+        }
+    }
+
     private boolean edgeChanged(long packed, boolean newVal) {
         Boolean prev = lastInput.get(packed);
         if (prev == null || prev != newVal) {
@@ -311,6 +361,34 @@ public final class RFLNetworkManager {
         }
     }
 
+    private void applyOutputsForBufferGates() {
+        for (long packed : new HashSet<>(dirty)) {
+            BlockPos pos = BlockPos.of(packed);
+            BlockState state = level.getBlockState(pos);
+
+            if (!(state.getBlock() instanceof BufferGateBlock)) continue;
+
+            NetworkNode node = graph.getNode(netPos(pos));
+            if (!(node instanceof BufferGateNode)) continue;
+
+            boolean desiredOut = node.singleOut() == SignalValue.ON;
+            boolean currentOut = state.getValue(BufferGateBlock.POWERED);
+
+            if (desiredOut != currentOut) {
+                BlockState newState = state.setValue(BufferGateBlock.POWERED, desiredOut);
+                level.setBlock(pos, newState, 3);
+
+                // Notify front + left + right explicitly
+                Direction front = frontDir(state);
+                level.updateNeighborsAt(pos.relative(front), state.getBlock());
+                level.updateNeighborsAt(pos.relative(front.getClockWise()), state.getBlock());
+                level.updateNeighborsAt(pos.relative(front.getCounterClockWise()), state.getBlock());
+            }
+
+            lastOut.put(packed, desiredOut);
+        }
+    }
+
     private void shrinkDirty() {
         Set<Long> stillDirty = new HashSet<>();
 
@@ -348,6 +426,15 @@ public final class RFLNetworkManager {
 
         ensureDelayStore();
         graph.putNode(np, new InverterNode(np, delayStore));
+    }
+
+    private void ensureBufferNode(BlockPos pos) {
+        NetPos np = netPos(pos);
+        NetworkNode existing = graph.getNode(np);
+        if (existing instanceof BufferGateNode) return;
+
+        ensureDelayStore();
+        graph.putNode(np, new BufferGateNode(np, delayStore));
     }
 
     private int readInputPowerFromSide(BlockPos logicPos, Direction side) {

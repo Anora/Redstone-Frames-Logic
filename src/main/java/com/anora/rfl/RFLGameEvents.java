@@ -44,6 +44,10 @@ public final class RFLGameEvents {
             RFLNetworkManager.get(level).onNorGatePlaced(event.getPos());
         } else if (event.getPlacedBlock().getBlock() instanceof XorGateBlock) {
             RFLNetworkManager.get(level).onXorGatePlaced(event.getPos());
+        } else if (event.getPlacedBlock().getBlock() instanceof XnorGateBlock) {
+            RFLNetworkManager.get(level).onXnorGatePlaced(event.getPos());
+        } else if (event.getPlacedBlock().getBlock() instanceof BufferGateBlock) {
+            RFLNetworkManager.get(level).onBufferGatePlaced(event.getPos());
         }
     }
 
@@ -65,6 +69,10 @@ public final class RFLGameEvents {
             RFLNetworkManager.get(level).onNorGateBroken(event.getPos());
         } else if (event.getState().getBlock() instanceof XorGateBlock) {
             RFLNetworkManager.get(level).onXorGateBroken(event.getPos());
+        } else if (event.getState().getBlock() instanceof XnorGateBlock) {
+            RFLNetworkManager.get(level).onXnorGateBroken(event.getPos());
+        } else if (event.getState().getBlock() instanceof BufferGateBlock) {
+            RFLNetworkManager.get(level).onBufferGateBroken(event.getPos());
         }
     }
 
@@ -104,6 +112,8 @@ public final class RFLGameEvents {
                         mgr.onXorGatePlaced(mp.immutable());
                     } else if (state.getBlock() instanceof XnorGateBlock) {
                         mgr.onXnorGatePlaced(mp.immutable());
+                    } else if (state.getBlock() instanceof BufferGateBlock) {
+                        mgr.onBufferGatePlaced(mp.immutable());
                     }
                 }
             }
