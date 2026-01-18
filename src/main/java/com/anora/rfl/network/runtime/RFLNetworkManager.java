@@ -37,7 +37,6 @@ public final class RFLNetworkManager {
         INSTANCES.remove(level);
     }
 
-    /** RedPower ladder (ticks). */
     public static final int[] REDPOWER_DELAYS = { 1, 2, 3, 4, 8, 16, 32, 64, 128 };
 
     private static final boolean FRONT_IS_FACING = true;
@@ -46,7 +45,6 @@ public final class RFLNetworkManager {
     private final ServerLevel level;
     private final NetworkGraph graph = new NetworkGraph();
 
-    // Keep repeater + NOT state here (unchanged behavior)
     private final Set<Long> repeaterPositions = new HashSet<>();
     private final Set<Long> notGatePositions = new HashSet<>();
 
@@ -57,7 +55,6 @@ public final class RFLNetworkManager {
     private DelayStore delayStore;
     private boolean delayStoreLoaded = false;
 
-    // Extracted runtime for 2-input gates
     private final TwoInputGatesRuntime twoInputRuntime;
 
     private RFLNetworkManager(ServerLevel level) {
@@ -74,10 +71,6 @@ public final class RFLNetworkManager {
                 lastOut
         );
     }
-
-    // ---------------------------------------------------------------------
-    // Placement hooks
-    // ---------------------------------------------------------------------
 
     public void onRepeaterPlaced(BlockPos pos) {
         long p = pos.asLong();
@@ -137,37 +130,23 @@ public final class RFLNetworkManager {
 
     // ---- 2-input gate hooks (delegated) ----
 
-    public void onAndGatePlaced(BlockPos pos) {
-        twoInputRuntime.onPlaced(TwoInputGatesRuntime.GateType.AND, pos);
-    }
+    public void onAndGatePlaced(BlockPos pos) { twoInputRuntime.onPlaced(TwoInputGatesRuntime.GateType.AND, pos); }
+    public void onAndGateBroken(BlockPos pos) { twoInputRuntime.onBroken(TwoInputGatesRuntime.GateType.AND, pos); }
 
-    public void onAndGateBroken(BlockPos pos) {
-        twoInputRuntime.onBroken(TwoInputGatesRuntime.GateType.AND, pos);
-    }
+    public void onOrGatePlaced(BlockPos pos) { twoInputRuntime.onPlaced(TwoInputGatesRuntime.GateType.OR, pos); }
+    public void onOrGateBroken(BlockPos pos) { twoInputRuntime.onBroken(TwoInputGatesRuntime.GateType.OR, pos); }
 
-    public void onOrGatePlaced(BlockPos pos) {
-        twoInputRuntime.onPlaced(TwoInputGatesRuntime.GateType.OR, pos);
-    }
+    public void onNandGatePlaced(BlockPos pos) { twoInputRuntime.onPlaced(TwoInputGatesRuntime.GateType.NAND, pos); }
+    public void onNandGateBroken(BlockPos pos) { twoInputRuntime.onBroken(TwoInputGatesRuntime.GateType.NAND, pos); }
 
-    public void onOrGateBroken(BlockPos pos) {
-        twoInputRuntime.onBroken(TwoInputGatesRuntime.GateType.OR, pos);
-    }
+    public void onNorGatePlaced(BlockPos pos) { twoInputRuntime.onPlaced(TwoInputGatesRuntime.GateType.NOR, pos); }
+    public void onNorGateBroken(BlockPos pos) { twoInputRuntime.onBroken(TwoInputGatesRuntime.GateType.NOR, pos); }
 
-    public void onNandGatePlaced(BlockPos pos) {
-        twoInputRuntime.onPlaced(TwoInputGatesRuntime.GateType.NAND, pos);
-    }
+    public void onXorGatePlaced(BlockPos pos) { twoInputRuntime.onPlaced(TwoInputGatesRuntime.GateType.XOR, pos); }
+    public void onXorGateBroken(BlockPos pos) { twoInputRuntime.onBroken(TwoInputGatesRuntime.GateType.XOR, pos); }
 
-    public void onNandGateBroken(BlockPos pos) {
-        twoInputRuntime.onBroken(TwoInputGatesRuntime.GateType.NAND, pos);
-    }
-
-    public void onNorGatePlaced(BlockPos pos) {
-        twoInputRuntime.onPlaced(TwoInputGatesRuntime.GateType.NOR, pos);
-    }
-
-    public void onNorGateBroken(BlockPos pos) {
-        twoInputRuntime.onBroken(TwoInputGatesRuntime.GateType.NOR, pos);
-    }
+    public void onXnorGatePlaced(BlockPos pos) { twoInputRuntime.onPlaced(TwoInputGatesRuntime.GateType.XNOR, pos); }
+    public void onXnorGateBroken(BlockPos pos) { twoInputRuntime.onBroken(TwoInputGatesRuntime.GateType.XNOR, pos); }
 
     // ---------------------------------------------------------------------
     // Delay config API (repeater right-click)
@@ -219,10 +198,6 @@ public final class RFLNetworkManager {
 
         shrinkDirty();
     }
-
-    // ---------------------------------------------------------------------
-    // Input processing (repeater + NOT only)
-    // ---------------------------------------------------------------------
 
     private void processInputsForRepeaters() {
         if (repeaterPositions.isEmpty()) return;
@@ -277,7 +252,7 @@ public final class RFLNetworkManager {
             int backPower = readInputPowerFromSide(pos, backDir(state));
             boolean hasInput = backPower > 0;
 
-            edgeChanged(packed, hasInput); // updates dirty
+            edgeChanged(packed, hasInput);
             graph.setExternalSingleIn(netPos(pos), hasInput ? SignalValue.ON : SignalValue.OFF);
         }
     }
@@ -291,10 +266,6 @@ public final class RFLNetworkManager {
         }
         return false;
     }
-
-    // ---------------------------------------------------------------------
-    // Output apply (repeater + NOT only)
-    // ---------------------------------------------------------------------
 
     private void applyOutputsForRepeaters() {
         for (long packed : new HashSet<>(dirty)) {
@@ -343,7 +314,6 @@ public final class RFLNetworkManager {
     private void shrinkDirty() {
         Set<Long> stillDirty = new HashSet<>();
 
-        // repeaters can be mid-transition (delay)
         for (long packed : repeaterPositions) {
             boolean in = lastInput.getOrDefault(packed, false);
             boolean out = lastOut.getOrDefault(packed, false);
@@ -353,10 +323,6 @@ public final class RFLNetworkManager {
         dirty.clear();
         dirty.addAll(stillDirty);
     }
-
-    // ---------------------------------------------------------------------
-    // Helpers
-    // ---------------------------------------------------------------------
 
     private void cleanupPos(BlockPos pos) {
         long packed = pos.asLong();
@@ -384,9 +350,6 @@ public final class RFLNetworkManager {
         graph.putNode(np, new InverterNode(np, delayStore));
     }
 
-    /**
-     * Reads power coming INTO this logic block from the neighbor at pos.relative(side).
-     */
     private int readInputPowerFromSide(BlockPos logicPos, Direction side) {
         BlockPos neighbor = logicPos.relative(side);
         Direction towardThis = side.getOpposite();

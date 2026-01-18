@@ -3,35 +3,37 @@ package com.anora.rfl.network.node;
 import com.anora.rfl.core.BundledSignal;
 import com.anora.rfl.core.SignalValue;
 import com.anora.rfl.network.NetPos;
+import com.anora.rfl.network.TwoInputNode;
 import com.anora.rfl.network.util.DelayStore;
 
-/**
- * 2-input XNOR gate using bundled channels:
- * - A = channel 0
- * - B = channel 1
- *
- * Output is ON when inputs are equal.
- */
-public final class XnorGateNode extends PositionedNode {
+public final class XnorGateNode extends PositionedNode implements TwoInputNode {
+
+    private SignalValue inA = SignalValue.OFF;
+    private SignalValue inB = SignalValue.OFF;
 
     public XnorGateNode(NetPos pos, DelayStore store) {
         super(pos, store);
-        this.singleOut = SignalValue.ON; // XNOR(false,false) = true
+        // XNOR: (OFF,OFF) should output ON
+        this.singleOut = SignalValue.ON;
         this.bundledOut = BundledSignal.ALL_OFF;
     }
 
     @Override
-    public void beginPass() {
-        // no-op
+    public void setInputs(SignalValue a, SignalValue b) {
+        this.inA = (a == null) ? SignalValue.OFF : a;
+        this.inB = (b == null) ? SignalValue.OFF : b;
     }
 
     @Override
-    public boolean evaluate() {
-        boolean a = bundledIn.isOn(0);
-        boolean b = bundledIn.isOn(1);
+    public void beginPass() {}
 
-        SignalValue next =
-                (a == b) ? SignalValue.ON : SignalValue.OFF;
+    @Override
+    public boolean evaluate() {
+        boolean a = (inA == SignalValue.ON);
+        boolean b = (inB == SignalValue.ON);
+
+        // XNOR: ON when inputs are the same
+        SignalValue next = (a == b) ? SignalValue.ON : SignalValue.OFF;
 
         if (next != singleOut) {
             singleOut = next;

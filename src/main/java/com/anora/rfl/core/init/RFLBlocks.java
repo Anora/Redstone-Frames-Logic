@@ -12,7 +12,6 @@ public final class RFLBlocks {
 
     private RFLBlocks() {}
 
-    // IMPORTANT: use DeferredRegister.Blocks (not DeferredRegister.create(Registries.BLOCK,...))
     public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(RFL.MODID);
 
     public static final DeferredBlock<RepeaterBlock> REPEATER = BLOCKS.registerBlock(
@@ -74,6 +73,28 @@ public final class RFLBlocks {
     public static final DeferredBlock<NorGateBlock> NOR_GATE = BLOCKS.registerBlock(
             "nor_gate",
             NorGateBlock::new,
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_RED)
+                    .sound(SoundType.STONE)
+                    .strength(1.5f)
+                    .noOcclusion()
+                    .isRedstoneConductor((state, level, pos) -> false)
+    );
+
+    public static final DeferredBlock<XorGateBlock> XOR_GATE = BLOCKS.registerBlock(
+            "xor_gate",
+            XorGateBlock::new,
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_RED)
+                    .sound(SoundType.STONE)
+                    .strength(1.5f)
+                    .noOcclusion()
+                    .isRedstoneConductor((state, level, pos) -> false)
+    );
+
+    public static final DeferredBlock<XnorGateBlock> XNOR_GATE = BLOCKS.registerBlock(
+            "xnor_gate",
+            XnorGateBlock::new,
             BlockBehaviour.Properties.of()
                     .mapColor(MapColor.COLOR_RED)
                     .sound(SoundType.STONE)

@@ -1,11 +1,6 @@
 package com.anora.rfl;
 
-import com.anora.rfl.core.block.AndGateBlock;
-import com.anora.rfl.core.block.NandGateBlock;
-import com.anora.rfl.core.block.NorGateBlock;
-import com.anora.rfl.core.block.NotGateBlock;
-import com.anora.rfl.core.block.OrGateBlock;
-import com.anora.rfl.core.block.RepeaterBlock;
+import com.anora.rfl.core.block.*;
 import com.anora.rfl.network.runtime.RFLNetworkManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -47,6 +42,8 @@ public final class RFLGameEvents {
             RFLNetworkManager.get(level).onNandGatePlaced(event.getPos());
         } else if (event.getPlacedBlock().getBlock() instanceof NorGateBlock) {
             RFLNetworkManager.get(level).onNorGatePlaced(event.getPos());
+        } else if (event.getPlacedBlock().getBlock() instanceof XorGateBlock) {
+            RFLNetworkManager.get(level).onXorGatePlaced(event.getPos());
         }
     }
 
@@ -66,6 +63,8 @@ public final class RFLGameEvents {
             RFLNetworkManager.get(level).onNandGateBroken(event.getPos());
         } else if (event.getState().getBlock() instanceof NorGateBlock) {
             RFLNetworkManager.get(level).onNorGateBroken(event.getPos());
+        } else if (event.getState().getBlock() instanceof XorGateBlock) {
+            RFLNetworkManager.get(level).onXorGateBroken(event.getPos());
         }
     }
 
@@ -101,6 +100,10 @@ public final class RFLGameEvents {
                         mgr.onNandGatePlaced(mp.immutable());
                     } else if (state.getBlock() instanceof NorGateBlock) {
                         mgr.onNorGatePlaced(mp.immutable());
+                    } else if (state.getBlock() instanceof XorGateBlock) {
+                        mgr.onXorGatePlaced(mp.immutable());
+                    } else if (state.getBlock() instanceof XnorGateBlock) {
+                        mgr.onXnorGatePlaced(mp.immutable());
                     }
                 }
             }
@@ -114,4 +117,3 @@ public final class RFLGameEvents {
         }
     }
 }
-

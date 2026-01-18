@@ -5,6 +5,8 @@ import com.anora.rfl.core.block.AndGateBlock;
 import com.anora.rfl.core.block.NandGateBlock;
 import com.anora.rfl.core.block.NorGateBlock;
 import com.anora.rfl.core.block.OrGateBlock;
+import com.anora.rfl.core.block.XnorGateBlock;
+import com.anora.rfl.core.block.XorGateBlock;
 import com.anora.rfl.core.block.common.GroundRotatableBlock;
 import com.anora.rfl.core.block.common.LogicGateBlock;
 import com.anora.rfl.network.NetPos;
@@ -15,6 +17,8 @@ import com.anora.rfl.network.node.AndGateNode;
 import com.anora.rfl.network.node.NandGateNode;
 import com.anora.rfl.network.node.NorGateNode;
 import com.anora.rfl.network.node.OrGateNode;
+import com.anora.rfl.network.node.XnorGateNode;
+import com.anora.rfl.network.node.XorGateNode;
 import com.anora.rfl.network.util.DelayStore;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -29,25 +33,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
-/**
- * Handles all 2-input, non-bundled logic gates:
- * AND / OR / NAND / NOR
- *
- * Rules:
- * - Inputs come from LEFT/RIGHT of FRONT
- * - Output goes to FRONT only (via LogicGateBlock POWERED)
- * - Manager feeds inputs, nodes compute output
- *
- * This class is intentionally "dumb": no ticking, no delays, no refactors.
- * Just wiring + apply.
- */
 final class TwoInputGatesRuntime {
 
     enum GateType {
         AND,
         OR,
         NAND,
-        NOR
+        NOR,
+        XOR,
+        XNOR
     }
 
     private static final boolean FRONT_IS_FACING = true;
@@ -56,7 +50,6 @@ final class TwoInputGatesRuntime {
     private final NetworkGraph graph;
     private final DelayStoreProvider delayStoreProvider;
 
-    // Share these with the manager so tick settle/apply behavior stays identical
     private final Set<Long> dirty;
     private final Map<Long, Boolean> lastOut;
 
@@ -97,11 +90,19 @@ final class TwoInputGatesRuntime {
                 NorGateNode.class,
                 (np, ds) -> new NorGateNode(np, ds)
         ));
-    }
 
-    // ---------------------------------------------------------------------
-    // Placement hooks (called from RFLNetworkManager)
-    // ---------------------------------------------------------------------
+        specs.put(GateType.XOR, new GateSpec(
+                XorGateBlock.class,
+                XorGateNode.class,
+                (np, ds) -> new XorGateNode(np, ds)
+        ));
+
+        specs.put(GateType.XNOR, new GateSpec(
+                XnorGateBlock.class,
+                XnorGateNode.class,
+                (np, ds) -> new XnorGateNode(np, ds)
+        ));
+    }
 
     void onPlaced(GateType type, BlockPos pos) {
         GateSpec spec = specs.get(type);
@@ -130,10 +131,6 @@ final class TwoInputGatesRuntime {
         graph.removeNode(netPos(pos));
     }
 
-    // ---------------------------------------------------------------------
-    // Tick hooks (called from RFLNetworkManager.tick())
-    // ---------------------------------------------------------------------
-
     void processInputs() {
         for (GateSpec spec : specs.values()) {
             processInputsForSpec(spec);
@@ -141,15 +138,10 @@ final class TwoInputGatesRuntime {
     }
 
     void applyOutputs() {
-        // Apply only for blocks that were marked dirty
         for (GateSpec spec : specs.values()) {
             applyOutputsForSpec(spec);
         }
     }
-
-    // ---------------------------------------------------------------------
-    // Internal: per-gate spec processing
-    // ---------------------------------------------------------------------
 
     private void processInputsForSpec(GateSpec spec) {
         if (spec.positions.isEmpty()) return;
@@ -181,14 +173,12 @@ final class TwoInputGatesRuntime {
 
             two.setInputs(a, b);
 
-            // These gates are NOT driven by external single input
             graph.setExternalSingleIn(np, SignalValue.OFF);
 
             int key = keyOf(a, b);
             Integer prev = spec.lastKey.get(packed);
             spec.lastKey.put(packed, key);
 
-            // Force first apply (important for NOR/NAND default behavior)
             if (prev == null || prev != key || !lastOut.containsKey(packed)) {
                 dirty.add(packed);
             }
@@ -208,7 +198,6 @@ final class TwoInputGatesRuntime {
 
             boolean desiredOut = node.singleOut() == SignalValue.ON;
 
-            // If something is wrong with blockstate setup, skip safely (no crash loops)
             if (!state.hasProperty(LogicGateBlock.POWERED)) continue;
 
             boolean currentOut = state.getValue(LogicGateBlock.POWERED);
@@ -238,10 +227,6 @@ final class TwoInputGatesRuntime {
         lastOut.remove(packed);
         graph.removeNode(netPos(pos));
     }
-
-    // ---------------------------------------------------------------------
-    // Shared helpers
-    // ---------------------------------------------------------------------
 
     private SignalValue readPowerAsSignal(BlockPos logicPos, Direction side) {
         int p = readInputPowerFromSide(logicPos, side);
@@ -289,10 +274,6 @@ final class TwoInputGatesRuntime {
     private static int keyOf(SignalValue a, SignalValue b) {
         return (a == SignalValue.ON ? 1 : 0) | (b == SignalValue.ON ? 2 : 0);
     }
-
-    // ---------------------------------------------------------------------
-    // Data + provider
-    // ---------------------------------------------------------------------
 
     interface DelayStoreProvider {
         void ensureDelayStore();
