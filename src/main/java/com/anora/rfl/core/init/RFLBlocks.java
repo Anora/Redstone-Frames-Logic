@@ -102,4 +102,18 @@ public final class RFLBlocks {
                             .noOcclusion()
                             .isRedstoneConductor((s, l, p) -> false)
             );
+
+    // imports unchanged …
+
+    public static final DeferredBlock<TimerBlock> TIMER =
+            BLOCKS.registerBlock(
+                    "timer",
+                    TimerBlock::new,
+                    BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.COLOR_RED)
+                            .sound(SoundType.STONE)
+                            .strength(1.5f)
+                            .noOcclusion()
+                            .isRedstoneConductor((s, l, p) -> false)
+            );
 }

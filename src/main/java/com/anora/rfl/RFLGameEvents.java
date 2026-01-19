@@ -114,7 +114,10 @@ public final class RFLGameEvents {
                         mgr.onXnorGatePlaced(mp.immutable());
                     } else if (state.getBlock() instanceof BufferGateBlock) {
                         mgr.onBufferGatePlaced(mp.immutable());
+                    }else if (state.getBlock() instanceof TimerBlock) {
+                        mgr.onTimerPlaced(mp.immutable());
                     }
+
                 }
             }
         }

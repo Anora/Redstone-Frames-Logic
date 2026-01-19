@@ -14,14 +14,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Fixes cosmetic "fake" redstone wire connections to RFL logic gates.
- *
+
  * In vanilla 1.21.x, wire connection visuals are derived from the wire state
  * returned by RedStoneWireBlock#getConnectionState(...).
- *
+
  * We post-process that returned state: if a neighboring block is a LogicGateBlock
  * and that side is NOT a real port (canConnectRedstone == false), we force the wire
  * connection on that side to RedstoneSide.NONE.
- *
+
  * This affects visuals only; your gate logic stays unchanged.
  */
 @Mixin(RedStoneWireBlock.class)

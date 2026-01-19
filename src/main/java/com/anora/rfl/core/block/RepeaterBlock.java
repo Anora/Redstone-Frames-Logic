@@ -1,6 +1,6 @@
 package com.anora.rfl.core.block;
 
-import com.anora.rfl.core.block.common.GroundRotatableBlock;
+import com.anora.rfl.core.block.common.LogicGateBlock;
 import com.anora.rfl.network.runtime.RFLNetworkManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -15,7 +15,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
-import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -23,20 +22,9 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 
 import javax.annotation.Nullable;
 
-public class RepeaterBlock extends GroundRotatableBlock {
+public class RepeaterBlock extends LogicGateBlock {
 
-    public static final BooleanProperty POWERED = BooleanProperty.create("powered");
     public static final IntegerProperty DELAY = IntegerProperty.create("delay", 1, 9);
-
-    /**
-     * MUST match RFLNetworkManager.
-     */
-    private static final boolean FRONT_IS_FACING = true;
-
-    /**
-     * Low-profile shape: 2/16 block tall (vanilla-like repeater height).
-     */
-    private static final VoxelShape SHAPE = Block.box(0, 0, 0, 16, 2, 16);
 
     public RepeaterBlock(Properties properties) {
         super(properties);
@@ -49,12 +37,6 @@ public class RepeaterBlock extends GroundRotatableBlock {
         );
     }
 
-    @Override
-    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        super.createBlockStateDefinition(builder);
-        builder.add(POWERED, DELAY);
-    }
-
     // ----------------- Shape (primary dust fix) -----------------
 
     @Override
@@ -63,22 +45,15 @@ public class RepeaterBlock extends GroundRotatableBlock {
     }
 
     @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        super.createBlockStateDefinition(builder); // adds FACING + POWERED
+        builder.add(DELAY);
+    }
+
+    @Override
     public VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
         return SHAPE;
     }
-
-    // ----------------- Facing helpers -----------------
-
-    private static Direction frontDir(BlockState state) {
-        Direction f = state.getValue(FACING);
-        return FRONT_IS_FACING ? f : f.getOpposite();
-    }
-
-    private static Direction backDir(BlockState state) {
-        return frontDir(state).getOpposite();
-    }
-
-    // ----------------- Delay config -----------------
 
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos,

@@ -20,5 +20,6 @@ public final class RFLItems {
         ITEMS.registerSimpleBlockItem("xor_gate", RFLBlocks.XOR_GATE);
         ITEMS.registerSimpleBlockItem("xnor_gate", RFLBlocks.XNOR_GATE);
         ITEMS.registerSimpleBlockItem("buffer_gate", RFLBlocks.BUFFER_GATE);
+        ITEMS.registerSimpleBlockItem("timer", RFLBlocks.TIMER);
     }
 }

@@ -8,22 +8,24 @@ import com.anora.rfl.network.util.DelayStore;
 
 /**
  * RedPower-style Timer (pulse generator):
- * - Waits {@code periodTicks}
- * - Emits a pulse of {@code pulseTicks} ticks (default 1)
+ * - Waits periodTicks
+ * - Emits a pulse of pulseTicks (default 1)
  * - Repeats
- *
- * This is a pure simulation component (no block yet).
+ * - Can be inhibited (paused) by external redstone input (manager sets it)
+ * - Can resync to world time (dayTime), resetting phase (RP2 behavior on time jumps)
  */
 public final class TimerNode extends PositionedNode implements TickableNode {
 
-    private static final int DEFAULT_PERIOD_TICKS = 40; // ~2 seconds at 20 TPS (MC standard)
-    private static final int DEFAULT_PULSE_TICKS = 1;
+    private static final int DEFAULT_PERIOD_TICKS = 40; // 2 seconds
+    private static final int DEFAULT_PULSE_TICKS = 4;
 
     private int periodTicks;
     private int pulseTicks;
 
     private int periodCountdown;
     private int pulseCountdown;
+
+    private boolean inhibited = false;
 
     public TimerNode(NetPos pos, DelayStore store) {
         this(pos, store, DEFAULT_PERIOD_TICKS, DEFAULT_PULSE_TICKS);
@@ -50,17 +52,19 @@ public final class TimerNode extends PositionedNode implements TickableNode {
         return pulseTicks;
     }
 
-    /** Sets a new period and restarts the cycle predictably. */
     public void setPeriodTicks(int periodTicks) {
         this.periodTicks = Math.max(1, periodTicks);
-        this.periodCountdown = this.periodTicks;
-        // keep pulseCountdown as-is (if we're mid-pulse, let it finish)
+        // Keep phase roughly stable unless resynced explicitly.
+        this.periodCountdown = Math.min(this.periodCountdown, this.periodTicks);
+        if (this.periodCountdown <= 0) this.periodCountdown = this.periodTicks;
     }
 
-    /** Sets pulse width (>=1). */
     public void setPulseTicks(int pulseTicks) {
         this.pulseTicks = Math.max(1, pulseTicks);
-        // if currently pulsing and new width is smaller, we still finish current pulse naturally
+    }
+
+    public void setInhibited(boolean inhibited) {
+        this.inhibited = inhibited;
     }
 
     @Override
@@ -70,12 +74,17 @@ public final class TimerNode extends PositionedNode implements TickableNode {
 
     @Override
     public boolean evaluate() {
-        // No inputs; nothing to evaluate.
+        // No combinational evaluation; output changes in tick().
         return false;
     }
 
     @Override
     public void tick() {
+        if (inhibited) {
+            // Freeze pointer/phase and do not output pulses.
+            return;
+        }
+
         // If we're in a pulse, count it down
         if (pulseCountdown > 0) {
             pulseCountdown--;
@@ -95,6 +104,21 @@ public final class TimerNode extends PositionedNode implements TickableNode {
             // Reset for next cycle
             periodCountdown = periodTicks;
         }
+    }
+
+    /**
+     * RP2-style world time synchronization:
+     * resets the phase based on the provided dayTime.
+     *
+     * Any time jump (sleep, /time) should call this to reset the timer.
+     */
+    public void resyncToWorldTime(long dayTime) {
+        // Reset output and pulse immediately
+        pulseCountdown = 0;
+        singleOut = SignalValue.OFF;
+
+        int mod = (int) Math.floorMod(dayTime, (long) periodTicks);
+        periodCountdown = (mod == 0) ? periodTicks : (periodTicks - mod);
     }
 }
 
