@@ -48,6 +48,12 @@ public final class RFLGameEvents {
             RFLNetworkManager.get(level).onXnorGatePlaced(event.getPos());
         } else if (event.getPlacedBlock().getBlock() instanceof BufferGateBlock) {
             RFLNetworkManager.get(level).onBufferGatePlaced(event.getPos());
+        } else if (event.getPlacedBlock().getBlock() instanceof TimerBlock) {
+            RFLNetworkManager.get(level).onTimerPlaced(event.getPos());
+        } else if (event.getPlacedBlock().getBlock() instanceof ToggleLatchBlock) {
+            RFLNetworkManager.get(level).onToggleLatchPlaced(event.getPos());
+        } else if (event.getPlacedBlock().getBlock() instanceof RSLatchBlock) {
+            RFLNetworkManager.get(level).onRSLatchPlaced(event.getPos());
         }
     }
 
@@ -73,6 +79,12 @@ public final class RFLGameEvents {
             RFLNetworkManager.get(level).onXnorGateBroken(event.getPos());
         } else if (event.getState().getBlock() instanceof BufferGateBlock) {
             RFLNetworkManager.get(level).onBufferGateBroken(event.getPos());
+        } else if (event.getState().getBlock() instanceof TimerBlock) {
+            RFLNetworkManager.get(level).onTimerBroken(event.getPos());
+        } else if (event.getState().getBlock() instanceof ToggleLatchBlock) {
+            RFLNetworkManager.get(level).onToggleLatchBroken(event.getPos());
+        } else if (event.getState().getBlock() instanceof RSLatchBlock) {
+            RFLNetworkManager.get(level).onRSLatchBroken(event.getPos());
         }
     }
 
@@ -114,10 +126,13 @@ public final class RFLGameEvents {
                         mgr.onXnorGatePlaced(mp.immutable());
                     } else if (state.getBlock() instanceof BufferGateBlock) {
                         mgr.onBufferGatePlaced(mp.immutable());
-                    }else if (state.getBlock() instanceof TimerBlock) {
+                    } else if (state.getBlock() instanceof TimerBlock) {
                         mgr.onTimerPlaced(mp.immutable());
+                    } else if (state.getBlock() instanceof ToggleLatchBlock) {
+                        mgr.onToggleLatchPlaced(mp.immutable());
+                    } else if (state.getBlock() instanceof RSLatchBlock) {
+                        mgr.onRSLatchPlaced(mp.immutable());
                     }
-
                 }
             }
         }

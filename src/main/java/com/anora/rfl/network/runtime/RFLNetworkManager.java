@@ -4,7 +4,6 @@ import com.anora.rfl.core.SignalValue;
 import com.anora.rfl.core.block.BufferGateBlock;
 import com.anora.rfl.core.block.NotGateBlock;
 import com.anora.rfl.core.block.RepeaterBlock;
-import com.anora.rfl.core.block.TimerBlock;
 import com.anora.rfl.core.block.common.GroundRotatableBlock;
 import com.anora.rfl.network.FileDelayStore;
 import com.anora.rfl.network.NetPos;
@@ -13,7 +12,6 @@ import com.anora.rfl.network.NetworkNode;
 import com.anora.rfl.network.node.BufferGateNode;
 import com.anora.rfl.network.node.InverterNode;
 import com.anora.rfl.network.node.RepeaterNode;
-import com.anora.rfl.network.node.TimerNode;
 import com.anora.rfl.network.util.DelayStore;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -27,6 +25,13 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Runtime orchestrator for RFL logic simulation.
+ *
+ * IMPORTANT: Repeater behavior is intentionally preserved.
+ * Timer + Toggle Latch logic are extracted into separate runtime classes
+ * to keep this manager from growing indefinitely.
+ */
 public final class RFLNetworkManager {
 
     private static final Map<ServerLevel, RFLNetworkManager> INSTANCES = new HashMap<>();
@@ -44,19 +49,15 @@ public final class RFLNetworkManager {
 
     private static final boolean FRONT_IS_FACING = true;
 
-    // Timer rules
-    private static final int TIMER_MIN_TICKS = 4;       // 0.2s
-    private static final int TIMER_DEFAULT_TICKS = 40;  // 2s
-    private static final int TIMER_MAX_TICKS = 1200;    // 60s
-
     private final ServerLevel level;
     private final NetworkGraph graph = new NetworkGraph();
 
+    // Core tracked blocks (keep repeater path unchanged)
     private final Set<Long> repeaterPositions = new HashSet<>();
     private final Set<Long> notGatePositions = new HashSet<>();
     private final Set<Long> bufferGatePositions = new HashSet<>();
-    private final Set<Long> timerPositions = new HashSet<>();
 
+    // Shared dirty bookkeeping (repeaters depend on this)
     private final Map<Long, Boolean> lastInput = new HashMap<>();
     private final Map<Long, Boolean> lastOut = new HashMap<>();
     private final Set<Long> dirty = new HashSet<>();
@@ -66,7 +67,10 @@ public final class RFLNetworkManager {
 
     private final TwoInputGatesRuntime twoInputRuntime;
 
-    private long lastDayTime = Long.MIN_VALUE;
+    // Extracted runtimes
+    private final TimerRuntime timerRuntime;
+    private final ToggleLatchRuntime toggleLatchRuntime;
+    private final RSLatchRuntime rsLatchRuntime;
 
     private RFLNetworkManager(ServerLevel level) {
         this.level = level;
@@ -81,6 +85,11 @@ public final class RFLNetworkManager {
                 dirty,
                 lastOut
         );
+
+        this.timerRuntime = new TimerRuntime(this);
+        this.toggleLatchRuntime = new ToggleLatchRuntime(this);
+        this.rsLatchRuntime = new RSLatchRuntime(this);
+
     }
 
     // ---------------------------------------------------------------------
@@ -165,39 +174,19 @@ public final class RFLNetworkManager {
         graph.removeNode(netPos(pos));
     }
 
-    public void onTimerPlaced(BlockPos pos) {
-        long p = pos.asLong();
-        timerPositions.add(p);
+    // ---------------------------------------------------------------------
+    // Delegated runtime hooks (timer + toggle latch)
+    // ---------------------------------------------------------------------
 
-        ensureDelayStore();
-        ensureTimerNode(pos);
+    public void onTimerPlaced(BlockPos pos) { timerRuntime.onPlaced(pos); }
+    public void onTimerBroken(BlockPos pos) { timerRuntime.onBroken(pos); }
+    public void cycleTimerPeriod(BlockPos pos, boolean reverse) { timerRuntime.cyclePeriod(pos, reverse); }
 
-        NetPos np = netPos(pos);
-        int current = delayStore.getDelayTicks(np, TIMER_DEFAULT_TICKS);
-        if (current <= 0) {
-            delayStore.setDelayTicks(np, TIMER_DEFAULT_TICKS);
-            delayStore.save();
-            current = TIMER_DEFAULT_TICKS;
-        }
-
-        NetworkNode node = graph.getNode(np);
-        if (node instanceof TimerNode t) {
-            t.setPeriodTicks(current);
-            t.resyncToWorldTime(level.getDayTime());
-        }
-
-        lastOut.remove(p);
-        dirty.add(p);
-    }
-
-    public void onTimerBroken(BlockPos pos) {
-        long p = pos.asLong();
-        timerPositions.remove(p);
-        dirty.remove(p);
-        lastOut.remove(p);
-
-        graph.removeNode(netPos(pos));
-    }
+    public void onToggleLatchPlaced(BlockPos pos) { toggleLatchRuntime.onPlaced(pos); }
+    public void onToggleLatchBroken(BlockPos pos) { toggleLatchRuntime.onBroken(pos); }
+    public void toggleLatchManual(BlockPos pos) { toggleLatchRuntime.toggleManual(pos); }
+    public void onRSLatchPlaced(BlockPos pos) { rsLatchRuntime.onPlaced(pos); }
+    public void onRSLatchBroken(BlockPos pos) { rsLatchRuntime.onBroken(pos); }
 
     // ---------------------------------------------------------------------
     // Two-input gate hooks (delegated)
@@ -222,7 +211,7 @@ public final class RFLNetworkManager {
     public void onXnorGateBroken(BlockPos pos) { twoInputRuntime.onBroken(TwoInputGatesRuntime.GateType.XNOR, pos); }
 
     // ---------------------------------------------------------------------
-    // Repeater delay API (unchanged behavior)
+    // Repeater delay API
     // ---------------------------------------------------------------------
 
     public int getRepeaterDelayTicks(BlockPos pos) {
@@ -250,56 +239,26 @@ public final class RFLNetworkManager {
     }
 
     // ---------------------------------------------------------------------
-    // Timer period API
-    // ---------------------------------------------------------------------
-
-    public void cycleTimerPeriod(BlockPos pos, boolean reverse) {
-        ensureDelayStore();
-        NetPos np = netPos(pos);
-
-        int current = delayStore.getDelayTicks(np, TIMER_DEFAULT_TICKS);
-        int step = 4;
-        int next = reverse ? (current - step) : (current + step);
-
-        if (next < TIMER_MIN_TICKS) next = TIMER_MIN_TICKS;
-        if (next > TIMER_MAX_TICKS) next = TIMER_MIN_TICKS;
-
-        delayStore.setDelayTicks(np, next);
-        delayStore.save();
-
-        NetworkNode node = graph.getNode(np);
-        if (node instanceof TimerNode t) {
-            t.setPeriodTicks(next);
-            // RP2-ish: changing period resets phase
-            t.resyncToWorldTime(level.getDayTime());
-        }
-
-        long packed = pos.asLong();
-        lastOut.remove(packed);
-        dirty.add(packed);
-    }
-
-    // ---------------------------------------------------------------------
     // Tick
     // ---------------------------------------------------------------------
 
     public void tick() {
         ensureDelayStoreIfNeeded();
 
-        // RP2 behavior: timers reset phase if dayTime jumps (sleep, /time)
-        long day = level.getDayTime();
-        if (lastDayTime != Long.MIN_VALUE && day != lastDayTime + 1) {
-            resyncAllTimers(day);
-        }
-        lastDayTime = day;
+        // Timers are time-driven; handle world-time jumps and keep them ticking
+        timerRuntime.preTick();
 
         processInputsForRepeaters();
         processInputsForNotGates();
         processInputsForBufferGates();
-        processTimers(); // inhibition + keep ticking
+
+        timerRuntime.processInputs();
+        toggleLatchRuntime.processInputs();
+        rsLatchRuntime.processInputs();
+
         twoInputRuntime.processInputs();
 
-        boolean needSim = !dirty.isEmpty() || !timerPositions.isEmpty();
+        boolean needSim = !dirty.isEmpty() || timerRuntime.needsTick();
         if (!needSim) return;
 
         graph.tick();
@@ -308,35 +267,18 @@ public final class RFLNetworkManager {
         applyOutputsForRepeaters();
         applyOutputsForNotGates();
         applyOutputsForBufferGates();
-        applyOutputsForTimers();
+
+        timerRuntime.applyOutputs();
+        toggleLatchRuntime.applyOutputs();
+        rsLatchRuntime.applyOutputs();
+
         twoInputRuntime.applyOutputs();
 
         shrinkDirty();
     }
 
-    private void resyncAllTimers(long dayTime) {
-        if (timerPositions.isEmpty()) return;
-        ensureDelayStore();
-
-        for (long packed : timerPositions) {
-            BlockPos pos = BlockPos.of(packed);
-            ensureTimerNode(pos);
-
-            NetPos np = netPos(pos);
-            int period = delayStore.getDelayTicks(np, TIMER_DEFAULT_TICKS);
-
-            NetworkNode node = graph.getNode(np);
-            if (node instanceof TimerNode t) {
-                t.setPeriodTicks(period);
-                t.resyncToWorldTime(dayTime);
-            }
-
-            dirty.add(packed);
-        }
-    }
-
     // ---------------------------------------------------------------------
-    // Input processing
+    // Input processing (core blocks)
     // ---------------------------------------------------------------------
 
     private void processInputsForRepeaters() {
@@ -411,45 +353,8 @@ public final class RFLNetworkManager {
         }
     }
 
-    /**
-     * Timers have no normal input, but they DO have an inhibit input (BACK).
-     * Also: keep timers dirty so pulse state is applied.
-     */
-    private void processTimers() {
-        if (timerPositions.isEmpty()) return;
-
-        for (long packed : timerPositions) {
-            BlockPos pos = BlockPos.of(packed);
-            BlockState state = level.getBlockState(pos);
-
-            if (!(state.getBlock() instanceof TimerBlock)) {
-                timerPositions.remove(packed);
-                cleanupPos(pos);
-                continue;
-            }
-
-            ensureTimerNode(pos);
-
-            NetPos np = netPos(pos);
-            NetworkNode node = graph.getNode(np);
-            if (!(node instanceof TimerNode t)) continue;
-
-            // Update period from store (player may have changed it)
-            int period = delayStore.getDelayTicks(np, TIMER_DEFAULT_TICKS);
-            if (t.periodTicks() != period) {
-                t.setPeriodTicks(period);
-            }
-
-            // Inhibit input: BACK powered => pause timer
-            int backPower = readInputPowerFromSide(pos, backDir(state));
-            t.setInhibited(backPower > 0);
-
-            // Always apply (pulses are time-driven)
-            dirty.add(packed);
-        }
-    }
-
-    private boolean edgeChanged(long packed, boolean newVal) {
+    /** Shared "input changed" tracking used by repeaters and other simple blocks. */
+    boolean edgeChanged(long packed, boolean newVal) {
         Boolean prev = lastInput.get(packed);
         if (prev == null || prev != newVal) {
             lastInput.put(packed, newVal);
@@ -460,7 +365,7 @@ public final class RFLNetworkManager {
     }
 
     // ---------------------------------------------------------------------
-    // Output apply
+    // Output apply (core blocks)
     // ---------------------------------------------------------------------
 
     private void applyOutputsForRepeaters() {
@@ -489,6 +394,7 @@ public final class RFLNetworkManager {
         for (long packed : new HashSet<>(dirty)) {
             BlockPos pos = BlockPos.of(packed);
             BlockState state = level.getBlockState(pos);
+
             if (!(state.getBlock() instanceof NotGateBlock)) continue;
 
             NetworkNode node = graph.getNode(netPos(pos));
@@ -523,51 +429,15 @@ public final class RFLNetworkManager {
             if (desiredOut != currentOut) {
                 BlockState newState = state.setValue(BufferGateBlock.POWERED, desiredOut);
                 level.setBlock(pos, newState, 3);
-                notifyThreeOutputs(pos, newState);
+
+                Direction front = frontDir(state);
+                level.updateNeighborsAt(pos.relative(front), state.getBlock());
+                level.updateNeighborsAt(pos.relative(front.getClockWise()), state.getBlock());
+                level.updateNeighborsAt(pos.relative(front.getCounterClockWise()), state.getBlock());
             }
 
             lastOut.put(packed, desiredOut);
         }
-    }
-
-    private void applyOutputsForTimers() {
-        for (long packed : new HashSet<>(dirty)) {
-            BlockPos pos = BlockPos.of(packed);
-            BlockState state = level.getBlockState(pos);
-
-            if (!(state.getBlock() instanceof TimerBlock)) continue;
-
-            NetPos np = netPos(pos);
-            NetworkNode node = graph.getNode(np);
-            if (!(node instanceof TimerNode t)) continue;
-
-            boolean desiredOut = t.singleOut() == SignalValue.ON;
-            boolean currentOut = state.getValue(TimerBlock.POWERED);
-
-            if (desiredOut != currentOut) {
-                BlockState newState = state.setValue(TimerBlock.POWERED, desiredOut);
-                level.setBlock(pos, newState, 3);
-                notifyThreeOutputs(pos, newState);
-            }
-
-            lastOut.put(packed, desiredOut);
-        }
-    }
-
-    private void notifyThreeOutputs(BlockPos pos, BlockState state) {
-        Direction front = frontDir(state);
-        Direction left = front.getCounterClockWise();
-        Direction right = front.getClockWise();
-
-        level.updateNeighborsAt(pos, state.getBlock());
-        level.updateNeighborsAt(pos.relative(front), state.getBlock());
-        level.updateNeighborsAt(pos.relative(left), state.getBlock());
-        level.updateNeighborsAt(pos.relative(right), state.getBlock());
-
-        level.updateNeighbourForOutputSignal(pos, state.getBlock());
-        level.updateNeighbourForOutputSignal(pos.relative(front), state.getBlock());
-        level.updateNeighbourForOutputSignal(pos.relative(left), state.getBlock());
-        level.updateNeighbourForOutputSignal(pos.relative(right), state.getBlock());
     }
 
     private void shrinkDirty() {
@@ -580,18 +450,27 @@ public final class RFLNetworkManager {
             if (in != out) stillDirty.add(packed);
         }
 
-        // Timers must keep applying pulses
-        stillDirty.addAll(timerPositions);
+        // Timers must keep running and applying pulses
+        timerRuntime.addStillDirty(stillDirty);
 
         dirty.clear();
         dirty.addAll(stillDirty);
     }
 
     // ---------------------------------------------------------------------
-    // Helpers
+    // Helpers / shared services (used by extracted runtimes)
     // ---------------------------------------------------------------------
 
-    private void cleanupPos(BlockPos pos) {
+    ServerLevel level() { return level; }
+    NetworkGraph graph() { return graph; }
+    DelayStore delayStore() { ensureDelayStore(); return delayStore; }
+
+    void markDirty(long packed) { dirty.add(packed); }
+    void clearLastOut(long packed) { lastOut.remove(packed); }
+    void setLastOut(long packed, boolean v) { lastOut.put(packed, v); }
+    Boolean getLastOut(long packed) { return lastOut.get(packed); }
+
+    void cleanupPos(BlockPos pos) {
         long packed = pos.asLong();
         dirty.remove(packed);
         lastInput.remove(packed);
@@ -599,11 +478,15 @@ public final class RFLNetworkManager {
         repeaterPositions.remove(packed);
         notGatePositions.remove(packed);
         bufferGatePositions.remove(packed);
-        timerPositions.remove(packed);
         graph.removeNode(netPos(pos));
+
+        // Let runtimes forget this position too
+        timerRuntime.forget(packed);
+        toggleLatchRuntime.forget(packed);
+        rsLatchRuntime.forget(packed);
     }
 
-    private void ensureRepeaterNode(BlockPos pos) {
+    void ensureRepeaterNode(BlockPos pos) {
         NetPos np = netPos(pos);
         NetworkNode existing = graph.getNode(np);
         if (existing instanceof RepeaterNode) return;
@@ -612,7 +495,7 @@ public final class RFLNetworkManager {
         graph.putNode(np, new RepeaterNode(np, delayStore));
     }
 
-    private void ensureInverterNode(BlockPos pos) {
+    void ensureInverterNode(BlockPos pos) {
         NetPos np = netPos(pos);
         NetworkNode existing = graph.getNode(np);
         if (existing instanceof InverterNode) return;
@@ -621,7 +504,7 @@ public final class RFLNetworkManager {
         graph.putNode(np, new InverterNode(np, delayStore));
     }
 
-    private void ensureBufferNode(BlockPos pos) {
+    void ensureBufferNode(BlockPos pos) {
         NetPos np = netPos(pos);
         NetworkNode existing = graph.getNode(np);
         if (existing instanceof BufferGateNode) return;
@@ -630,16 +513,7 @@ public final class RFLNetworkManager {
         graph.putNode(np, new BufferGateNode(np, delayStore));
     }
 
-    private void ensureTimerNode(BlockPos pos) {
-        NetPos np = netPos(pos);
-        NetworkNode existing = graph.getNode(np);
-        if (existing instanceof TimerNode) return;
-
-        ensureDelayStore();
-        graph.putNode(np, new TimerNode(np, delayStore));
-    }
-
-    private int readInputPowerFromSide(BlockPos logicPos, Direction side) {
+    int readInputPowerFromSide(BlockPos logicPos, Direction side) {
         BlockPos neighbor = logicPos.relative(side);
         Direction towardThis = side.getOpposite();
 
@@ -650,7 +524,7 @@ public final class RFLNetworkManager {
         return Math.max(Math.max(weak, direct), best);
     }
 
-    private void notifyRedstoneBothSides(BlockPos pos, BlockState state) {
+    void notifyRedstoneBothSides(BlockPos pos, BlockState state) {
         Direction front = frontDir(state);
         Direction back = backDir(state);
 
@@ -663,8 +537,13 @@ public final class RFLNetworkManager {
         level.updateNeighbourForOutputSignal(pos.relative(back), state.getBlock());
     }
 
-    private void ensureDelayStoreIfNeeded() {
-        if (!repeaterPositions.isEmpty() || !timerPositions.isEmpty()) ensureDelayStore();
+    void ensureDelayStoreIfNeeded() {
+        if (!repeaterPositions.isEmpty()
+                || timerRuntime.hasAny()
+                || toggleLatchRuntime.hasAny()
+                || rsLatchRuntime.hasAny()) {
+            ensureDelayStore();
+        }
     }
 
     void ensureDelayStore() {
@@ -682,18 +561,17 @@ public final class RFLNetworkManager {
         }
     }
 
-    private NetPos netPos(BlockPos pos) {
+    NetPos netPos(BlockPos pos) {
         int dim = level.dimension().location().hashCode();
         return new NetPos(pos.getX(), pos.getY(), pos.getZ(), dim);
     }
 
-    private static Direction frontDir(BlockState state) {
+    Direction frontDir(BlockState state) {
         Direction facing = state.getValue(GroundRotatableBlock.FACING);
         return FRONT_IS_FACING ? facing : facing.getOpposite();
     }
 
-    private static Direction backDir(BlockState state) {
+    Direction backDir(BlockState state) {
         return frontDir(state).getOpposite();
     }
 }
-

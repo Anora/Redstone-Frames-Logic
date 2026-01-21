@@ -3,78 +3,80 @@ package com.anora.rfl.network.node;
 import com.anora.rfl.core.BundledSignal;
 import com.anora.rfl.core.SignalValue;
 import com.anora.rfl.network.NetPos;
+import com.anora.rfl.network.TwoInputNode;
 import com.anora.rfl.network.util.DelayStore;
 
 /**
- * RS Latch (Set/Reset) driven by bundled inputs:
- * - S = channel 0 (rising edge sets Q=ON)
- * - R = channel 1 (rising edge resets Q=OFF)
+ * RedPower RS Latch (two I/O faces that swap roles).
  *
- * Outputs:
- * - singleOut = Q
- * - qBar() accessor = /Q
+ * Inputs:
+ *   A = LEFT power
+ *   B = RIGHT power
  *
- * If both S and R rise in the same evaluate pass: Reset wins.
+ * State:
+ *   singleOut == ON  => LEFT is the constant-output side (RIGHT is input)
+ *   singleOut == OFF => RIGHT is the constant-output side (LEFT is input)
+ *
+ * Switching rule:
+ *   A rising-edge pulse on the CURRENT INPUT side flips the latch.
+ *
+ * Example:
+ *   If LEFT is output (singleOut=ON), then RIGHT is input.
+ *   Pulse RIGHT => latch flips so RIGHT becomes output (singleOut=OFF).
  */
-public final class RSLatchNode extends PositionedNode {
+public final class RSLatchNode extends PositionedNode implements TwoInputNode {
 
-    private SignalValue q = SignalValue.OFF;
-    private SignalValue qBar = SignalValue.ON;
+    private SignalValue inLeft = SignalValue.OFF;
+    private SignalValue inRight = SignalValue.OFF;
 
-    private boolean lastS = false;
-    private boolean lastR = false;
+    private boolean lastLeft = false;
+    private boolean lastRight = false;
 
     public RSLatchNode(NetPos pos, DelayStore store) {
         super(pos, store);
-        this.singleOut = q;
+        this.singleOut = SignalValue.ON; // default: LEFT outputs
         this.bundledOut = BundledSignal.ALL_OFF;
     }
 
-    public SignalValue q() {
-        return q;
-    }
-
-    public SignalValue qBar() {
-        return qBar;
+    /** Initialize from blockstate POWERED (true => LEFT outputs). */
+    public void setLeftOutputs(boolean leftOutputs) {
+        this.singleOut = leftOutputs ? SignalValue.ON : SignalValue.OFF;
     }
 
     @Override
-    public void beginPass() {
-        // stateful outputs; do not clear
+    public void setInputs(SignalValue a, SignalValue b) {
+        this.inLeft = (a == null) ? SignalValue.OFF : a;
+        this.inRight = (b == null) ? SignalValue.OFF : b;
     }
+
+    @Override
+    public void beginPass() {}
 
     @Override
     public boolean evaluate() {
-        boolean s = bundledIn.isOn(0);
-        boolean r = bundledIn.isOn(1);
+        boolean leftNow = (inLeft == SignalValue.ON);
+        boolean rightNow = (inRight == SignalValue.ON);
 
-        boolean sRise = (!lastS && s);
-        boolean rRise = (!lastR && r);
+        boolean leftRising = leftNow && !lastLeft;
+        boolean rightRising = rightNow && !lastRight;
 
-        lastS = s;
-        lastR = r;
+        lastLeft = leftNow;
+        lastRight = rightNow;
 
-        if (!sRise && !rRise) {
-            return false;
-        }
-
-        // Apply priority: Reset wins if both rise simultaneously
-        SignalValue nextQ = q;
-        SignalValue nextQb = qBar;
-
-        if (rRise) {
-            nextQ = SignalValue.OFF;
-            nextQb = SignalValue.ON;
-        } else if (sRise) {
-            nextQ = SignalValue.ON;
-            nextQb = SignalValue.OFF;
-        }
-
-        if (nextQ != q) {
-            q = nextQ;
-            qBar = nextQb;
-            singleOut = q; // drive output
-            return true;
+        boolean leftIsOutput = (singleOut == SignalValue.ON);
+        // Only the CURRENT INPUT side can trigger a swap.
+        if (leftIsOutput) {
+            // RIGHT is input
+            if (rightRising) {
+                singleOut = SignalValue.OFF; // RIGHT becomes output
+                return true;
+            }
+        } else {
+            // LEFT is input
+            if (leftRising) {
+                singleOut = SignalValue.ON; // LEFT becomes output
+                return true;
+            }
         }
 
         return false;

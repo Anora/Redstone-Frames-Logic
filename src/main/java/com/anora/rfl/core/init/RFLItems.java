@@ -21,5 +21,8 @@ public final class RFLItems {
         ITEMS.registerSimpleBlockItem("xnor_gate", RFLBlocks.XNOR_GATE);
         ITEMS.registerSimpleBlockItem("buffer_gate", RFLBlocks.BUFFER_GATE);
         ITEMS.registerSimpleBlockItem("timer", RFLBlocks.TIMER);
+        ITEMS.registerSimpleBlockItem("toggle_latch", RFLBlocks.TOGGLE_LATCH);
+        ITEMS.registerSimpleBlockItem("rs_latch", RFLBlocks.RS_LATCH);
+
     }
 }

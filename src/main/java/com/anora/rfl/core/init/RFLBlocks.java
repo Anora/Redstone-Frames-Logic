@@ -116,4 +116,29 @@ public final class RFLBlocks {
                             .noOcclusion()
                             .isRedstoneConductor((s, l, p) -> false)
             );
+
+    public static final DeferredBlock<ToggleLatchBlock> TOGGLE_LATCH =
+            BLOCKS.registerBlock(
+                    "toggle_latch",
+                    ToggleLatchBlock::new,
+                    BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.COLOR_RED)
+                            .sound(SoundType.STONE)
+                            .strength(1.5f)
+                            .noOcclusion()
+                            .isRedstoneConductor((s, l, p) -> false)
+            );
+
+    public static final DeferredBlock<RSLatchBlock> RS_LATCH =
+            BLOCKS.registerBlock(
+                    "rs_latch",
+                    RSLatchBlock::new,
+                    BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.COLOR_RED)
+                            .sound(SoundType.STONE)
+                            .strength(1.5f)
+                            .noOcclusion()
+                            .isRedstoneConductor((s, l, p) -> false)
+            );
+
 }
