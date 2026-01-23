@@ -54,6 +54,8 @@ public final class RFLGameEvents {
             RFLNetworkManager.get(level).onToggleLatchPlaced(event.getPos());
         } else if (event.getPlacedBlock().getBlock() instanceof RSLatchBlock) {
             RFLNetworkManager.get(level).onRSLatchPlaced(event.getPos());
+        } else if (event.getPlacedBlock().getBlock() instanceof SequencerBlock) {
+            RFLNetworkManager.get(level).onSequencerPlaced(event.getPos());
         }
     }
 
@@ -85,6 +87,8 @@ public final class RFLGameEvents {
             RFLNetworkManager.get(level).onToggleLatchBroken(event.getPos());
         } else if (event.getState().getBlock() instanceof RSLatchBlock) {
             RFLNetworkManager.get(level).onRSLatchBroken(event.getPos());
+        } else if (event.getState().getBlock() instanceof SequencerBlock) {
+            RFLNetworkManager.get(level).onSequencerBroken(event.getPos());
         }
     }
 
@@ -132,6 +136,8 @@ public final class RFLGameEvents {
                         mgr.onToggleLatchPlaced(mp.immutable());
                     } else if (state.getBlock() instanceof RSLatchBlock) {
                         mgr.onRSLatchPlaced(mp.immutable());
+                    } else if (state.getBlock() instanceof SequencerBlock) {
+                        mgr.onSequencerPlaced(mp.immutable());
                     }
                 }
             }

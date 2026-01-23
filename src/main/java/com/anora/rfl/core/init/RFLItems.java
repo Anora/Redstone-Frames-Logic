@@ -23,6 +23,6 @@ public final class RFLItems {
         ITEMS.registerSimpleBlockItem("timer", RFLBlocks.TIMER);
         ITEMS.registerSimpleBlockItem("toggle_latch", RFLBlocks.TOGGLE_LATCH);
         ITEMS.registerSimpleBlockItem("rs_latch", RFLBlocks.RS_LATCH);
-
+        ITEMS.registerSimpleBlockItem("sequencer", RFLBlocks.SEQUENCER);
     }
 }
